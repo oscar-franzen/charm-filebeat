@@ -1,14 +1,14 @@
 #!/usr/bin/python3
-"""ElasticsearchCharm."""
+"""FilebeatCharm."""
 import logging
-import os
-from pathlib import Path
-import socket
+import pathlib
 import subprocess
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import (
+    Environment,
+    FileSystemLoader,
+)
 from ops.charm import CharmBase
-from ops.framework import Object
 from ops.main import main
 from ops.model import ActiveStatus
 
@@ -16,85 +16,140 @@ from ops.model import ActiveStatus
 logger = logging.getLogger()
 
 
-class ElasticsearchProvides(Object):
-    """Provide host."""
+OS_RELEASE = pathlib.Path("/etc/os-release").read_text().split("\n")
+OS_RELEASE_CTXT = {
+    k: v.strip("\"")
+    for k, v in [item.split("=") for item in OS_RELEASE if item != '']
+}
 
-    def __init__(self, charm, relation_name):
-        """Set data on relation created."""
-        super().__init__(charm, relation_name)
+TEMPLATE_DIR = pathlib.Path("./src/templates")
 
-        self.framework.observe(
-            charm.on[relation_name].relation_created,
-            self.on_relation_created
+
+def _render_template(template_name, target, context):
+    rendered_template = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_DIR))
+    ).get_template(template_name)
+    target.write_text(rendered_template.render(context))
+
+
+class ElasticOpsManager:
+
+    def __init__(self, elastic_service):
+        self._os = OS_RELEASE_CTXT['ID']
+        self._version_id = OS_RELEASE_CTXT['VERSION_ID']
+        self._elastic_service = elastic_service
+        self._config_file_path = pathlib.Path(
+            f"/etc/{elastic_service}/{elastic_service}.yml"
+        )
+        self._config_template_name = f"{elastic_service}.yml.j2"
+
+    def install(self, resource):
+        self._install_java()
+        self._install_elastic_resource(resource)
+
+    def _install_elastic_resource(self, resource):
+        if self._os == 'ubuntu':
+            subprocess.call([
+                "dpkg",
+                "-i",
+                resource
+            ])
+        elif self._os == 'centos':
+            subprocess.call([
+                "rpm",
+                "--install",
+                resource
+            ])
+
+    def _install_java(self):
+        if self._os == 'ubuntu':
+            subprocess.call(["apt", "update", "-y"])
+            if self._version_id in ['20.04', '18.04']:
+                subprocess.call(["apt", "install", "openjdk-8-jre-headless", "-y"])
+        elif self._os == 'centos':
+            if self._version_id == '7':
+                subprocess.call(["yum", "update", "-y"])
+                subprocess.call(["yum", "install", "java-1.8.0-openjdk-headless", "-y"])
+            elif self._version_id == '8':
+                subprocess.call(["dnf", "update", "-y"])
+                subprocess.call(["dnf", "install", "java-1.8.0-openjdk-headless", "-y"])
+
+    def start_elastic_service(self):
+        subprocess.call([
+            "systemctl",
+            "enable",
+            self._elastic_service
+        ])
+        subprocess.call([
+            "systemctl",
+            "start",
+            self._elastic_service
+        ])
+
+    def render_config_and_restart(self, context):
+        # Remove the pre-existing config
+        if self._config_file_path.exists():
+            self._config_file_path.unlink()
+
+        # Write /etc/filebeat/filebeat.yml
+        _render_template(
+            self._config_template_name,
+            self._config_file_path,
+            context
         )
 
-    def on_relation_created(self, event):
-        """Set host on relation created."""
-        event.relation.data[self.model.unit]['host'] = socket.gethostname().split(".")[0]
+        # Restart filebeat service
+        subprocess.call([
+            "systemctl",
+            "restart",
+            self._elastic_service
+        ])
 
 
 class FilebeatCharm(CharmBase):
-    """Operator charm for Elasticsearch."""
+    """Filebeat charm."""
 
     def __init__(self, *args):
         """Initialize charm, configure states, and events to observe."""
         super().__init__(*args)
-        self.elastic_search = ElasticsearchProvides(self, "elasticsearch")
+
+        self._elastic_ops_manager = ElasticOpsManager("filebeat")
+
         event_handler_bindings = {
             self.on.install: self._on_install,
+            self.on.start: self._on_start,
+            self.on.upgrade_charm: self._on_upgrade_charm,
+            self.on.config_changed: self._on_handle_config,
         }
         for event, handler in event_handler_bindings.items():
             self.framework.observe(event, handler)
 
     def _on_install(self, event):
-        """Install ElasticSearch."""
-        subprocess.run(
-            ["sudo", "dpkg", "-i", self.model.resources.fetch("filebeat")]
-        )
-        open_port(9200)
-        host_name = socket.gethostname()
-        ctxt = {"hostname": host_name}
-        #write_config(ctxt)
-        self.unit.status = ActiveStatus("Elasticsearch Installed")
+        resource = self.model.resources.fetch('elastic-resource')
+        self._elastic_ops_manager.install(resource)
+        self.unit.status = ActiveStatus("Filebeat installed")
 
+    def _on_start(self, event):
+        self._elastic_ops_manager.start_elastic_service()
+        self.unit.status = ActiveStatus("Filebeat available")
 
+    def _on_upgrade_charm(self, event):
+        pass
 
-def write_config(context):
-    """Render the context to a template.
+    def _handle_config(self, event):
+        ctxt = {
+            'elasticsearch_hosts': [],
+            'logpath': self.model.config.get('logpath').split(" ")
+        }
 
-    target: /etc/elasticsearch/elasticsearch.yml
-    source: /templates/elasticsearch.yml.tmpl
-    file name can also be slurmdbdb.conf
-    """
-    template_name = "filebeat.yml.tmpl"
-    template_dir = "templates"
-    target = Path("/etc/filebeat/filebeat.yml")
-    logger.info(os.getcwd())
-    rendered_template = Environment(
-        loader=FileSystemLoader(template_dir)
-    ).get_template(template_name)
+        user_provided_elasticsearch_hosts = \
+            self.model.config.get('elasticsearch-hosts')
 
-    target.write_text(rendered_template.render(context))
+        if user_provided_elasticsearch_hosts:
+            ctxt['elasticsearch_hosts'] = \
+                user_provided_elasticsearch_hosts.split(",")
 
-
-def _modify_port(start=None, end=None, protocol='tcp', hook_tool="open-port"):
-    assert protocol in {'tcp', 'udp', 'icmp'}
-    if protocol == 'icmp':
-        start = None
-        end = None
-
-    if start and end:
-        port = f"{start}-{end}/"
-    elif start:
-        port = f"{start}/"
-    else:
-        port = ""
-    subprocess.run([hook_tool, f"{port}{protocol}"])
-
-
-def open_port(start, end=None, protocol="tcp"):
-    """Open port in operator charm."""
-    _modify_port(start, end, protocol=protocol, hook_tool="open-port")
+        self._elastic_ops_manager.render_config_and_restart(ctxt)
 
 
 if __name__ == "__main__":

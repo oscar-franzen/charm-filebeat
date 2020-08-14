@@ -11,11 +11,17 @@ tags:
 series:
     - bionic
     - focal
-provides:
-  elasticsearch:
-    interface: elasticsearch
+    - centos7
+
+#subordinate: true
+
+#requires:
+#  juju-info:
+#    interface: juju-info
+#    scope: container
+
 resources:
-  filebeat:
+  elastic-resource:
     type: file
-    filename: filebeat-7.8.1-amd64.deb
-    description: filebeat deb
+    filename: filebeat.resource
+    description: filebeat resource

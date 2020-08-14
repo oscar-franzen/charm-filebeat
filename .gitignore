@@ -1,4 +1,11 @@
 # Byte-compiled / optimized / DLL files
+*.charm
+build/*
+.tox/
+*.deb
+*.rpm
+*.resource
+
 __pycache__/
 *.py[cod]
 *$py.class

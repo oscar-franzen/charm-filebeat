@@ -1,0 +1,12 @@
+options:
+  elasticsearch-hosts:
+    type: string
+    default: ""
+    description: >-
+      'User defined elasticsearch hosts to use as output datastore.
+       The hosts defined here will override any juju related elastcisearch hosts.'
+  logpath:
+    type: string
+    default: "/var/log/*.log /var/log/*/*.log"
+    description: >-
+      'Space separated log paths to monitor. Can contain wildcards.'
