@@ -1,0 +1,21 @@
+name: filebeat 
+summary: filebeat
+maintainers:
+    - Omnivector Solutions <Admin@omnivector.solutions>
+description: |
+    A nice long description of what the product does and any
+    high level information about how the charm provides the product,
+    on which platform, etc.
+tags:
+    - slurm
+series:
+    - bionic
+    - focal
+provides:
+  elasticsearch:
+    interface: elasticsearch
+resources:
+  filebeat:
+    type: file
+    filename: filebeat-7.8.1-amd64.deb
+    description: filebeat deb
