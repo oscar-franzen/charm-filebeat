@@ -136,7 +136,7 @@ class FilebeatCharm(CharmBase):
     def _on_upgrade_charm(self, event):
         pass
 
-    def _handle_config(self, event):
+    def _on_handle_config(self, event):
         ctxt = {
             'elasticsearch_hosts': [],
             'logpath': self.model.config.get('logpath').split(" ")
