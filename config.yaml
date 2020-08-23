@@ -4,7 +4,8 @@ options:
     default: ""
     description: >-
       'User defined elasticsearch hosts to use as output datastore.
-       The hosts defined here will override any juju related elastcisearch hosts.'
+       The hosts defined here will override any juju related elastcisearch hosts.
+       Example: elasticsearch01:9200,elasticsearch02:9200'
   logpath:
     type: string
     default: "/var/log/*.log /var/log/*/*.log"
