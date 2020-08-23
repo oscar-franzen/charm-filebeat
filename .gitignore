@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+*.resource
+*.snap
 *.charm
 build/*
 .tox/

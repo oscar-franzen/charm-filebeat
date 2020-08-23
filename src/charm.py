@@ -38,16 +38,16 @@ class FilebeatCharm(CharmBase):
 
     def _on_handle_config(self, event):
         ctxt = {
-            'elasticsearch_hosts': [],
+            'logging_hosts': [],
             'logpath': self.model.config.get('logpath').split(" ")
         }
 
-        user_provided_elasticsearch_hosts = \
-            self.model.config.get('elasticsearch-hosts')
+        user_provided_logging_hosts = \
+            self.model.config.get('logging-hosts')
 
-        if user_provided_elasticsearch_hosts:
-            ctxt['elasticsearch_hosts'] = \
-                user_provided_elasticsearch_hosts.split(",")
+        if user_provided_logging_hosts:
+            ctxt['logging_hosts'] = \
+                user_provided_logging_hosts.split(",")
 
         self._elastic_ops_manager.render_config_and_restart(ctxt)
 
