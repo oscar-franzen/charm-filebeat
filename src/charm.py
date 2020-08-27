@@ -1,12 +1,6 @@
 #!/usr/bin/python3
-"""ElasticsearchCharm."""
-import logging
-import os
-from pathlib import Path
-import socket
-import subprocess
-
-from jinja2 import Environment, FileSystemLoader
+"""FilebeatCharm."""
+from elastic_ops_manager import ElasticOpsManager
 from ops.charm import CharmBase
 from ops.framework import (
     Object,
@@ -23,9 +17,8 @@ logger = logging.getLogger()
 
 
 class FilebeatCharm(CharmBase):
-    """Operator charm for Filebeat."""
+    """Filebeat charm."""
     stored = StoredState()
-
     def __init__(self, *args):
         """Initialize charm, configure states, and events to observe."""
         super().__init__(*args)
@@ -61,9 +54,13 @@ class FilebeatCharm(CharmBase):
         self.unit.status = ActiveStatus('Filebeat Started')
 
 
+    def _on_start(self, event):
+        self._elastic_ops_manager.start_elastic_service()
+        self.unit.status = ActiveStatus("Filebeat available")
+
+
 def write_config(context):
     """Render the context to a template.
-
     target: /etc/elasticsearch/elasticsearch.yml
     source: /templates/elasticsearch.yml.tmpl
     file name can also be slurmdbdb.conf
@@ -77,26 +74,6 @@ def write_config(context):
     ).get_template(template_name)
 
     target.write_text(rendered_template.render(context))
-
-
-def _modify_port(start=None, end=None, protocol='tcp', hook_tool="open-port"):
-    assert protocol in {'tcp', 'udp', 'icmp'}
-    if protocol == 'icmp':
-        start = None
-        end = None
-
-    if start and end:
-        port = f"{start}-{end}/"
-    elif start:
-        port = f"{start}/"
-    else:
-        port = ""
-    subprocess.run([hook_tool, f"{port}{protocol}"])
-
-
-def open_port(start, end=None, protocol="tcp"):
-    """Open port in operator charm."""
-    _modify_port(start, end, protocol=protocol, hook_tool="open-port")
 
 
 if __name__ == "__main__":

@@ -11,14 +11,19 @@ tags:
 series:
     - bionic
     - focal
+    - centos7
+
+subordinate: true
+
 requires:
-  slurmctld-logging:
-    interface: slurmctld-logging
+  juju-info:
+    interface: juju-info
     scope: container
   elasticsearch:
     interface: elasticsearch
+
 resources:
-  filebeat:
+  elastic-resource:
     type: file
-    filename: filebeat-7.8.1-amd64.deb
-    description: filebeat deb
+    filename: filebeat.resource
+    description: filebeat resource
