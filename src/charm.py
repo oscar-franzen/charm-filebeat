@@ -8,55 +8,57 @@ import subprocess
 
 from jinja2 import Environment, FileSystemLoader
 from ops.charm import CharmBase
-from ops.framework import Object
+from ops.framework import (
+    Object,
+    StoredState,
+)
 from ops.main import main
-from ops.model import ActiveStatus
-
+from ops.model import (
+    ActiveStatus,
+    BlockedStatus,
+)
+from elasticsearch_requires import ElasticsearchRequires
 
 logger = logging.getLogger()
 
 
-class ElasticsearchProvides(Object):
-    """Provide host."""
-
-    def __init__(self, charm, relation_name):
-        """Set data on relation created."""
-        super().__init__(charm, relation_name)
-
-        self.framework.observe(
-            charm.on[relation_name].relation_created,
-            self.on_relation_created
-        )
-
-    def on_relation_created(self, event):
-        """Set host on relation created."""
-        event.relation.data[self.model.unit]['host'] = socket.gethostname().split(".")[0]
-
-
 class FilebeatCharm(CharmBase):
-    """Operator charm for Elasticsearch."""
+    """Operator charm for Filebeat."""
+    stored = StoredState()
 
     def __init__(self, *args):
         """Initialize charm, configure states, and events to observe."""
         super().__init__(*args)
-        self.elastic_search = ElasticsearchProvides(self, "elasticsearch")
+        self.elasticsearch = ElasticsearchRequires(self, "elasticsearch")
+        self.stored.set_default(
+            elasticsearch_ingresss=None,
+        )
         event_handler_bindings = {
             self.on.install: self._on_install,
+            self.on.start: self._on_start,
+            self.elasticsearch.on.elasticsearch_available:
+            self._on_elasticsearch_available,
         }
         for event, handler in event_handler_bindings.items():
             self.framework.observe(event, handler)
 
     def _on_install(self, event):
-        """Install ElasticSearch."""
+        """Install Filebeat"""
         subprocess.run(
             ["sudo", "dpkg", "-i", self.model.resources.fetch("filebeat")]
         )
-        open_port(9200)
-        host_name = socket.gethostname()
-        ctxt = {"hostname": host_name}
-        #write_config(ctxt)
-        self.unit.status = ActiveStatus("Elasticsearch Installed")
+        self.unit.status = ActiveStatus("Filebeat Installed")
 
+    def _on_start(self, event):
+        """Start Filebeat."""
+        self.unit.status = BlockedStatus("Need relation to elasticsearch")
+
+    def _on_elasticsearch_available(self, event):
+        subprocess.run(["sudo", "-i", "service", "filebeat", "stop"])
+        ctxt = {'elasticsearch_address': self.stored.elasticsearch_ingress}
+        write_config(ctxt)
+        subprocess.run(["sudo", "-i", "service", "filebeat", "start"])
+        self.unit.status = ActiveStatus('Filebeat Started')
 
 
 def write_config(context):

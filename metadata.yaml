@@ -11,7 +11,10 @@ tags:
 series:
     - bionic
     - focal
-provides:
+requires:
+  slurmctld-logging:
+    interface: slurmctld-logging
+    scope: container
   elasticsearch:
     interface: elasticsearch
 resources:
