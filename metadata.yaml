@@ -1,0 +1,27 @@
+name: filebeat 
+summary: filebeat
+maintainers:
+    - Omnivector Solutions <Admin@omnivector.solutions>
+description: |
+    A nice long description of what the product does and any
+    high level information about how the charm provides the product,
+    on which platform, etc.
+tags:
+    - slurm
+series:
+    - bionic
+    - focal
+    - centos7
+
+#subordinate: true
+
+#requires:
+#  juju-info:
+#    interface: juju-info
+#    scope: container
+
+resources:
+  elastic-resource:
+    type: file
+    filename: filebeat.resource
+    description: filebeat resource
