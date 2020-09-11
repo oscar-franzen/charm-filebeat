@@ -13,12 +13,12 @@ series:
     - focal
     - centos7
 
-#subordinate: true
+subordinate: true
 
-#requires:
-#  juju-info:
-#    interface: juju-info
-#    scope: container
+requires:
+  juju-info:
+    interface: juju-info
+    scope: container
 
 resources:
   elastic-resource:
